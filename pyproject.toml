@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "openai-secretary"
+version = "0.1.0"
+description = ""
+authors = ["frodo821 <sakaic2003@gmail.com>"]
+readme = "README.md"
+packages = [{ include = "openai_secretary" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+openai = "^0.27.0"
+pony = {git = "https://github.com/jspricke/pony", rev = "py311"}
+numpy = "^1.24.2"
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.0.1"
+yapf = "^0.32.0"
+toml = "^0.10.2"
+pylint = "^2.16.2"
+pony-stubs = "^0.5.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.yapf]
+based_on_style = "google"
+column_limit = 120
+indent_width = 2
+continuation_indent_width = 2
+split_before_closing_bracket = true
+split_before_first_argument = true
+dedent_closing_brackets = true
+coalesce_brackets = true
