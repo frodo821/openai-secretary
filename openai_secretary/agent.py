@@ -105,7 +105,6 @@ evaluation:"""
     # yapf: enable
 
     for m in ctx:
-      print('[DEBUG]', m.role, m.text)
       context.append({'role': 'system', 'content': f'関連する会話ログ(発言者: {m.role}): {m.text}'})
 
     em = self.get_emotional_vector(message)
@@ -114,8 +113,6 @@ evaluation:"""
     self.emotion.fear -= em[2]
     self.emotion.joy -= em[3]
     self.emotion.sadness -= em[4]
-
-    print('[DEBUG]', repr(self.emotion))
 
     context.append({
       'role': 'system',
