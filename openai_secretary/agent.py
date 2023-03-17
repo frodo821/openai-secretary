@@ -74,7 +74,7 @@ class Agent:
 
     # yapf: disable
     ctx = select(
-      m for m in Message if m.embeddings is not None and m.index > oldest_recent_index
+      m for m in Message if m.embeddings is not None and m.index < oldest_recent_index
     ).order_by(
       lambda m: desc(raw_sql("similarity(m.embeddings, $search_vec)"))
     )[:10]
