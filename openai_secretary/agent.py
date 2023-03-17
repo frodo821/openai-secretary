@@ -7,11 +7,12 @@ from pony.orm import db_session, desc, select, raw_sql
 
 from openai_secretary.database import Master
 from openai_secretary.database.models import Conversation, Message
-from openai_secretary.resource.resources import ContextItem, create_initial_context, initial_messages
+from openai_secretary.resource import ContextItem, Emotion, IAgent, create_initial_context, initial_messages
 
 
-class Agent:
+class Agent(IAgent):
   context: list[ContextItem]
+  emotion: Emotion
 
   @db_session
   def __init__(self, api_key: Optional[str]):
@@ -30,7 +31,7 @@ class Agent:
     system = select(m for m in Message if m.role == 'system').order_by(Message.index)
 
     self.context = [{'role': msg.role, 'content': msg.text} for msg in system]
-    self.context.extend(create_initial_context(conv))
+    create_initial_context(conv, self)
 
   @db_session
   def init_conversation(self) -> Conversation:
@@ -83,6 +84,10 @@ class Agent:
     for m in ctx:
       print('[DEBUG]', m.role, m.text)
       context.append({'role': 'system', 'content': f'関連する会話ログ(発言者: {m.role}): {m.text}'})
+    context.append({
+      'role': 'system',
+      'content': f'シミュレートされたあなたの今の感情は次の通りです。\n{self.emotion}\nこの感情に従って、会話を続けてください。',
+    })
 
     context.append({'role': 'user', 'content': message})
 
