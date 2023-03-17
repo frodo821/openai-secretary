@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Optional, Required, TypedDict
+import json
+from typing import Optional
 
 import openai as oai
 from openai.openai_object import OpenAIObject
@@ -13,6 +14,7 @@ from openai_secretary.resource import ContextItem, Emotion, IAgent, create_initi
 class Agent(IAgent):
   context: list[ContextItem]
   emotion: Emotion
+  emotion_delta: float = 0.5
 
   @db_session
   def __init__(self, api_key: Optional[str]):
@@ -60,6 +62,27 @@ class Agent(IAgent):
     assert obj['object'] == 'embedding'
     return obj['embedding']
 
+  def get_emotional_vector(self, text: str) -> list[float]:
+    prompt = f"""evaluate how the text moves emotions along each of the five axes with a number within 20 steps -10 to 10.
+evaluation must be in the format: `[<anger>, <disgust>, <fear>, <joy>, <sadness>]`.
+extreme evaluations are not preferable.
+
+text:{text}
+evaluation:"""
+    resp: OpenAIObject = oai.Completion.create(
+      model="text-davinci-003",
+      prompt=prompt,
+      temperature=0.2,
+      max_tokens=64,
+      top_p=1,
+      best_of=3,
+      frequency_penalty=0,
+      presence_penalty=0,
+    )
+    vec: list[int] = json.loads(resp["choices"][0]["text"].strip().split('\n')[0])
+
+    return [i / 10 * self.emotion_delta for i in vec]
+
   @db_session
   def talk(self, message: str) -> str:
     conv = select(c for c in Conversation).order_by(desc(Conversation.last_interact_at)).first()
@@ -84,6 +107,16 @@ class Agent(IAgent):
     for m in ctx:
       print('[DEBUG]', m.role, m.text)
       context.append({'role': 'system', 'content': f'関連する会話ログ(発言者: {m.role}): {m.text}'})
+
+    em = self.get_emotional_vector(message)
+    self.emotion.anger -= em[0]
+    self.emotion.disgust -= em[1]
+    self.emotion.fear -= em[2]
+    self.emotion.joy -= em[3]
+    self.emotion.sadness -= em[4]
+
+    print('[DEBUG]', repr(self.emotion))
+
     context.append({
       'role': 'system',
       'content': f'シミュレートされたあなたの今の感情は次の通りです。\n{self.emotion}\nこの感情に従って、会話を続けてください。',
