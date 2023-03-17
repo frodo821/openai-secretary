@@ -89,7 +89,7 @@ class Agent:
     # yapf: enable
 
     for m in ctx:
-      context.append({'role': 'system', 'content': f'関連する会話ログ: {m.text}'})
+      context.append({'role': 'system', 'content': f'関連する会話ログ(発言者: {m.role}): {m.text}'})
 
     context.append({'role': 'user', 'content': message})
 
