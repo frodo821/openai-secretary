@@ -66,8 +66,25 @@ class Agent:
     vec1 = self.get_embedding_vector(message)
 
     context = self.context.copy()
-    recent = select(m for m in Message).order_by(Message.index)[:20]
+    recent = [*select(m for m in Message).order_by(Message.index)[:20]]
     context.extend({'role': msg.role, 'content': msg.text} for msg in recent)
+
+    search_vec = str(vec1)
+    oldest_recent_index = recent[0].index
+
+    # yapf: disable
+    ctx = select(
+      m for m in Message if m.embeddings is not None and m.index > oldest_recent_index
+    ).order_by(
+      lambda m: desc(raw_sql("similarity(m.embeddings, $search_vec)"))
+    )[:10]
+    # yapf: enable
+
+    for m in ctx:
+      print('[DEBUG]', m.role, m.text)
+      context.append({'role': 'system', 'content': f'関連する会話ログ(発言者: {m.role}): {m.text}'})
+
+    context.append({'role': 'user', 'content': message})
 
     msg = Message(
       index=len(conv.messages),
@@ -77,21 +94,6 @@ class Agent:
       created_at=datetime.now(),
       conversation=conv,
     )
-
-    search_vec = str(vec1)
-
-    # yapf: disable
-    ctx = select(
-      m for m in Message if m.embeddings is not None
-    ).order_by(
-      lambda m: desc(raw_sql("similarity(m.embeddings, $search_vec)"))
-    )[:10]
-    # yapf: enable
-
-    for m in ctx:
-      context.append({'role': 'system', 'content': f'関連する会話ログ(発言者: {m.role}): {m.text}'})
-
-    context.append({'role': 'user', 'content': message})
 
     response = oai.ChatCompletion.create(
       model='gpt-3.5-turbo',
