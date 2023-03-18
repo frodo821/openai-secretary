@@ -41,7 +41,7 @@ class OpenAIChatBot:
       await message.channel.send(f'`[SYSTEM]` 現在の返答率は{self.response_ratios[message.channel.id]}です。')
       return
 
-    self.response_ratio = float(args)
+    self.response_ratios[message.channel.id] = float(args)
     await message.channel.send(f'`[SYSTEM]` 返答率を{self.response_ratios[message.channel.id]}に更新しました。')
 
   async def cmd_initial_prompt(self, message: Message, args: str) -> None:
@@ -85,9 +85,9 @@ class OpenAIChatBot:
     if message.mentions and self.client.user not in message.mentions:
       return
 
-    if message.content.startswith(self.cmd_prefix):
+    if message.content.startswith(self.cmd_prefixes[cid]):
       cmd, *args = message.content.strip().split(None, 1)
-      name = f'cmd_{cmd[1:].replace("-", "_")}'
+      name = f'cmd_{cmd[len(self.cmd_prefixes[cid]):].replace("-", "_")}'
       if hasattr(self, name):
         await getattr(self, name)(message, (args or [''])[0])
       else:

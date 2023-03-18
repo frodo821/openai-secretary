@@ -4,12 +4,12 @@ from openai_secretary.database import db
 
 
 class Master(db.Entity):
-  version = orm.PrimaryKey(int, auto=True)
+  version = orm.PrimaryKey(int, auto=True, size=64)
   api_key = orm.Required(str)
 
 
 class Conversation(db.Entity):
-  id = orm.PrimaryKey(int, auto=True)
+  id = orm.PrimaryKey(int, auto=True, size=64)
   name = orm.Optional(str)
   description = orm.Optional(str)
   messages = orm.Set(lambda: Message)
@@ -18,7 +18,7 @@ class Conversation(db.Entity):
 
 
 class Message(db.Entity):
-  id = orm.PrimaryKey(int, auto=True)
+  id = orm.PrimaryKey(int, auto=True, size=64)
   index = orm.Required(int)
   role = orm.Required(str)
   text = orm.Required(str)
