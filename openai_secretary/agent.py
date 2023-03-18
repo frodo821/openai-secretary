@@ -45,6 +45,18 @@ class Agent(IAgent):
     if self._debug:
       print('[DEBUG]', *args)
 
+  @property
+  @db_session
+  def initial_message(self) -> str:
+    return select(m for m in Message if m.role == 'system').order_by(Message.index).first().text
+
+  @initial_message.setter
+  @db_session
+  def initial_message(self, message: str) -> None:
+    msg = select(m for m in Message if m.role == 'system').order_by(Message.index).first()
+    msg.text = message
+    self.context[0]['content'] = message
+
   @db_session
   def init_conversation(self) -> Conversation:
     conv = Conversation(
@@ -94,7 +106,7 @@ evaluation:"""
     return [i / 10 * self.emotion_delta for i in vec]
 
   @db_session
-  def talk(self, message: str) -> str:
+  def talk(self, message: str, need_response: bool = True) -> str:
     conv = select(c for c in Conversation).order_by(desc(Conversation.last_interact_at)).first()
 
     vec1 = self.get_embedding_vector(message)
@@ -143,6 +155,9 @@ evaluation:"""
       created_at=datetime.now(),
       conversation=conv,
     )
+
+    if not need_response:
+      return ''
 
     response = oai.ChatCompletion.create(
       model='gpt-3.5-turbo',

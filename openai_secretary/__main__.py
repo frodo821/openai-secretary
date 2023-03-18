@@ -1,25 +1,8 @@
 import atexit
-from os.path import dirname, join, expanduser
+from os.path import join, expanduser
 import sys
-from openai_secretary import Agent
+from openai_secretary import init_agent
 from readline import read_history_file, set_history_length, write_history_file
-
-agent: Agent
-
-
-def init_agent() -> Agent:
-  global agent
-
-  with open(join(dirname(__file__), '..', '.secret')) as f:
-    key = f.read().strip()
-
-  agent = Agent(key, debug="--debug" in sys.argv)
-
-  return agent
-
-
-def talk_with_agent(message: str) -> str:
-  return agent.talk(message)
 
 
 def main():
@@ -33,12 +16,12 @@ def main():
   atexit.register(write_history_file, history)
   set_history_length(1000)
 
-  init_agent()
+  agent = init_agent(debug="--debug" in sys.argv)
 
   while True:
     try:
       message = input('You: ')
-      print('Agent:', talk_with_agent(message))
+      print('Agent:', agent.talk(message))
     except KeyboardInterrupt:
       print('Bye!')
       break
