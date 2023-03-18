@@ -25,7 +25,6 @@ class OpenAIChatBot:
     intents.message_content = True
 
     self.client = Client(intents=intents)
-    self.agent = init_agent(debug=False)
     self.__secret = secret
     self.default_response_ratio = response_ratio
     registerHandlers(self, self.client)
@@ -52,24 +51,25 @@ class OpenAIChatBot:
       return
 
     self.agents[message.channel.id].initial_message = args
-    await message.channel.send(f'`[SYSTEM]` 初期プロンプトを「{self.agent.initial_message}」に更新しました。')
+    await message.channel.send(f'`[SYSTEM]` 初期プロンプトを「{self.agents[message.channel.id].initial_message}」に更新しました。')
 
   async def cmd_debug(self, message: Message, args: str) -> None:
+    cid = message.channel.id
     if not args:
       await message.channel.send(
-        f'`[SYSTEM]` 現在のデバッグモードは{"有効" if self.agents[message.channel.id]._debug else "無効"}です。',
+        f'`[SYSTEM]` 現在のデバッグモードは{"有効" if self.agents[cid]._debug else "無効"}です。',
       )
       return
 
     match args.split():
       case ['console', 'on']:
-        self.agents[message.channel.id]._debug = True
+        self.agents[cid]._debug = True
         await message.channel.send(f'`[SYSTEM]` コンソールデバッグを有効に切り替えました。')
       case ['console', 'off']:
-        self.agents[message.channel.id]._debug = False
+        self.agents[cid]._debug = False
         await message.channel.send(f'`[SYSTEM]` コンソールデバッグを無効に切り替えました。')
       case ['emotion']:
-        await message.channel.send(f'`[SYSTEM]` 現在の感情は{repr(self.agents[message.channel.id].emotion)}です。')
+        await message.channel.send(f'`[SYSTEM]` 現在の感情は{repr(self.agents[cid].emotion)}です。')
 
   async def on_message(self, message: Message) -> None:
     cid = message.channel.id

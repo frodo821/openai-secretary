@@ -142,7 +142,7 @@ evaluation:"""
     context.extend({'role': msg.role, 'content': msg.text} for msg in recent)
 
     search_vec = str(vec1)
-    oldest_recent_index = recent[0].index
+    oldest_recent_index = recent[0].index if recent else 0
 
     # yapf: disable
     ctx = select(
