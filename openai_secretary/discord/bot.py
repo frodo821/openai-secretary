@@ -23,7 +23,7 @@ class OpenAIChatBot:
     intents.message_content = True
 
     self.client = Client(intents=intents)
-    self.agent = init_agent()
+    self.agent = init_agent(debug=False)
     self.__secret = secret
     self.response_ratio = response_ratio
     registerHandlers(self, self.client)
@@ -50,6 +50,21 @@ class OpenAIChatBot:
     self.agent.initial_message = args
     await message.channel.send(f'`[SYSTEM]` 初期プロンプトを「{self.agent.initial_message}」に更新しました。')
 
+  async def cmd_debug(self, message: Message, args: str) -> None:
+    if not args:
+      await message.channel.send(f'`[SYSTEM]` 現在のデバッグモードは{"有効" if self.agent._debug else "無効"}です。')
+      return
+
+    match args.split():
+      case ['console', 'on']:
+        self.agent._debug = True
+        await message.channel.send(f'`[SYSTEM]` コンソールデバッグを有効に切り替えました。')
+      case ['console', 'off']:
+        self.agent._debug = False
+        await message.channel.send(f'`[SYSTEM]` コンソールデバッグを無効に切り替えました。')
+      case ['emotion']:
+        await message.channel.send(f'`[SYSTEM]` 現在の感情は{repr(self.agent.emotion)}です。')
+
   async def on_message(self, message: Message) -> None:
     if message.author == self.client.user:
       return
@@ -66,14 +81,19 @@ class OpenAIChatBot:
         await message.channel.send(f'`[SYSTEM]` コマンド「{cmd}」は存在しません。')
       return
 
-    if random() < self.response_ratio or self.client.user in message.mentions:
+    mentioned = self.client.user in message.mentions
+
+    if random() < self.response_ratio or mentioned:
       await message.channel.typing()
-      await message.channel.send(
-        self.agent.talk(
-          f"{message.author.display_name}「{message.content}」",
-          need_response=True,
-        ),
+      text = self.agent.talk(
+        f"{message.author.display_name}「{message.content}」",
+        need_response=True,
       )
+
+      if mentioned:
+        await message.reply(text)
+      else:
+        await message.channel.send(text)
     else:
       self.agent.talk(
         f"{message.author.display_name}「{message.content}」",
