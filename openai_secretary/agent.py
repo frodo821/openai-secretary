@@ -19,7 +19,7 @@ class Agent(IAgent):
   _debug: bool
 
   @db_session
-  def __init__(self, api_key: Optional[str], *, debug: bool = False):
+  def __init__(self, api_key: Optional[str], *, debug: bool = False, conversation_id: Optional[int] = None):
     self._debug = debug
     self.debugLog('debug logs on.')
 
@@ -30,11 +30,14 @@ class Agent(IAgent):
 
     oai.api_key = master.api_key
 
-    conv = select(c for c in Conversation).order_by(desc(Conversation.last_interact_at)).first()
+    if conversation_id is not None:
+      conv = Conversation.get(id=conversation_id)
+    else:
+      conv = Conversation.select().order_by(desc(Conversation.last_interact_at)).first()
 
     if conv is None:
       self.debugLog('no existing conversations found. initializing conversation.')
-      conv = self.init_conversation()
+      conv = self.init_conversation(conversation_id)
 
     system = select(m for m in Message if m.role == 'system').order_by(Message.index)
 
@@ -58,16 +61,25 @@ class Agent(IAgent):
     self.context[0]['content'] = message
 
   @db_session
-  def init_conversation(self) -> Conversation:
-    conv = Conversation(
-      name='Default',
-      description='Default conversation',
-      created_at=datetime.now(),
-      last_interact_at=datetime.now(),
-    )
+  def init_conversation(self, id: Optional[int]) -> Conversation:
+    if id is None:
+      conv = Conversation(
+        name='Default',
+        description='Default conversation',
+        created_at=datetime.now(),
+        last_interact_at=datetime.now(),
+      )
+    else:
+      conv = Conversation(
+        id=id,
+        name=f'conversation@{id}',
+        description='Default conversation',
+        created_at=datetime.now(),
+        last_interact_at=datetime.now(),
+      )
 
     for i, (role, text) in enumerate(res.initial_messages):
-      msg = Message(
+      Message(
         index=i,
         role=role,
         text=text,
