@@ -1,5 +1,7 @@
-from os.path import dirname, join
+import atexit
+from os.path import dirname, join, expanduser
 from openai_secretary import Agent
+from readline import read_history_file, set_history_length, write_history_file
 
 agent: Agent
 
@@ -20,6 +22,16 @@ def talk_with_agent(message: str) -> str:
 
 
 def main():
+  history = join(expanduser("~"), ".oai_secretary", "input_history")
+
+  try:
+    read_history_file(history)
+  except FileNotFoundError:
+    pass
+
+  atexit.register(write_history_file, history)
+  set_history_length(1000)
+
   init_agent()
 
   while True:
