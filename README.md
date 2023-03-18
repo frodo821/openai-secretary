@@ -37,10 +37,11 @@ cd ./sqlite
 make -j2
 sudo cp ./sqlite3 /usr/local/bin/sqlite3
 cd ..
-gcc-12 -shared \
+sudo libtool --mode=install install -c ./sqlite/libsqlite3.la /usr/local/lib
+gcc-12 -shared -fPIC \
        -o openai_secretary/plugins/vector_cosine_similarity.so \
        ./native/vector_cosine_similarity.c \
-       -lm -lsqlite3 -I./sqlite/src/ -L./sqlite/
+       -lm -lsqlite3 -I./sqlite/ -L/usr/local/lib
 ```
 
 ### 依存関係のインストール
