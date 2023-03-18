@@ -8,7 +8,8 @@ from pony.orm import db_session, desc, select, raw_sql
 
 from openai_secretary.database import Master
 from openai_secretary.database.models import Conversation, Message
-from openai_secretary.resource import ContextItem, Emotion, IAgent, create_initial_context, initial_messages
+from openai_secretary.resource import ContextItem, Emotion, IAgent
+import openai_secretary.resource.resources as res
 
 
 class Agent(IAgent):
@@ -33,7 +34,7 @@ class Agent(IAgent):
     system = select(m for m in Message if m.role == 'system').order_by(Message.index)
 
     self.context = [{'role': msg.role, 'content': msg.text} for msg in system]
-    create_initial_context(conv, self)
+    res.create_initial_context(conv, self)
 
   @db_session
   def init_conversation(self) -> Conversation:
@@ -44,7 +45,7 @@ class Agent(IAgent):
       last_interact_at=datetime.now(),
     )
 
-    for i, (role, text) in enumerate(initial_messages):
+    for i, (role, text) in enumerate(res.initial_messages):
       msg = Message(
         index=i,
         role=role,
