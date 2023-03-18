@@ -1,6 +1,6 @@
 from datetime import datetime
 import json
-from typing import Optional
+from typing import Any, Optional
 
 import openai as oai
 from openai.openai_object import OpenAIObject
@@ -16,9 +16,13 @@ class Agent(IAgent):
   context: list[ContextItem]
   emotion: Emotion
   emotion_delta: float = 0.5
+  _debug: bool
 
   @db_session
-  def __init__(self, api_key: Optional[str]):
+  def __init__(self, api_key: Optional[str], *, debug: bool = False):
+    self._debug = debug
+    self.debugLog('debug logs on.')
+
     master: Master | None = Master.select().order_by(desc(Master.version)).first()
 
     if master is None or master.api_key != api_key:
@@ -29,12 +33,17 @@ class Agent(IAgent):
     conv = select(c for c in Conversation).order_by(desc(Conversation.last_interact_at)).first()
 
     if conv is None:
+      self.debugLog('no existing conversations found. initializing conversation.')
       conv = self.init_conversation()
 
     system = select(m for m in Message if m.role == 'system').order_by(Message.index)
 
     self.context = [{'role': msg.role, 'content': msg.text} for msg in system]
     res.create_initial_context(conv, self)
+
+  def debugLog(self, *args: Any) -> None:
+    if self._debug:
+      print('[DEBUG]', *args)
 
   @db_session
   def init_conversation(self) -> Conversation:
@@ -99,14 +108,16 @@ evaluation:"""
 
     # yapf: disable
     ctx = select(
-      m for m in Message if m.embeddings is not None and m.index < oldest_recent_index
+      (m, raw_sql('similarity(m.embeddings, $search_vec) as "sim"', result_type=float))
+      for m in Message if m.embeddings is not None and m.index < oldest_recent_index
     ).order_by(
-      lambda m: desc(raw_sql("similarity(m.embeddings, $search_vec)"))
+      lambda m, s: desc(raw_sql('"sim"'))
     )[:10]
     # yapf: enable
 
-    for m in ctx:
+    for m, similarity in ctx:
       context.append({'role': 'system', 'content': f'関連する会話ログ(発言者: {m.role}): {m.text}'})
+      self.debugLog(f'related message (similarity: {similarity}): {m.text}')
 
     em = self.get_emotional_vector(message)
     self.debugLog('emotion delta:', em)
@@ -115,6 +126,7 @@ evaluation:"""
     self.emotion.fear += em[2]
     self.emotion.joy += em[3]
     self.emotion.sadness += em[4]
+    self.debugLog('current emotion:', repr(self.emotion))
 
     context.append({
       'role': 'system',

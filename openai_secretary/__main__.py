@@ -1,5 +1,6 @@
 import atexit
 from os.path import dirname, join, expanduser
+import sys
 from openai_secretary import Agent
 from readline import read_history_file, set_history_length, write_history_file
 
@@ -12,7 +13,7 @@ def init_agent() -> Agent:
   with open(join(dirname(__file__), '..', '.secret')) as f:
     key = f.read().strip()
 
-  agent = Agent(key)
+  agent = Agent(key, debug="--debug" in sys.argv)
 
   return agent
 
