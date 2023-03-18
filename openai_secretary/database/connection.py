@@ -5,7 +5,7 @@ from pony import orm
 
 db = orm.Database()
 db_path = expanduser('~/.oai_secretary/master.db')
-ext_path = abspath(join(dirname(__file__), '..', 'plugins', 'vector_cosine_similarity.dylib'))
+ext_path = abspath(join(dirname(__file__), '..', 'plugins', 'vector_cosine_similarity'))
 
 if not exists(db_dir := dirname(db_path)):
   makedirs(db_dir)
