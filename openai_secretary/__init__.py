@@ -1,2 +1,3 @@
 from openai_secretary.agent import Agent
-from openai_secretary.chat import init_agent, talk_with_agent
+from openai_secretary.database.models import Conversation, Message
+from openai_secretary.resource import ContextItem, Emotion, IAgent
