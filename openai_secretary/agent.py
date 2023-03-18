@@ -109,11 +109,12 @@ evaluation:"""
       context.append({'role': 'system', 'content': f'関連する会話ログ(発言者: {m.role}): {m.text}'})
 
     em = self.get_emotional_vector(message)
-    self.emotion.anger -= em[0]
-    self.emotion.disgust -= em[1]
-    self.emotion.fear -= em[2]
-    self.emotion.joy -= em[3]
-    self.emotion.sadness -= em[4]
+    self.debugLog('emotion delta:', em)
+    self.emotion.anger += em[0]
+    self.emotion.disgust += em[1]
+    self.emotion.fear += em[2]
+    self.emotion.joy += em[3]
+    self.emotion.sadness += em[4]
 
     context.append({
       'role': 'system',
