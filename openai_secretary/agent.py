@@ -112,7 +112,8 @@ evaluation:"""
     vec1 = self.get_embedding_vector(message)
 
     context = self.context.copy()
-    recent = [*select(m for m in Message).order_by(Message.index)[:20]]
+    recent = [*select(m for m in Message if m.role != 'system').order_by(desc(Message.index))[:20]]
+    recent.reverse()
     context.extend({'role': msg.role, 'content': msg.text} for msg in recent)
 
     search_vec = str(vec1)
