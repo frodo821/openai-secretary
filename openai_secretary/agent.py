@@ -16,6 +16,7 @@ class Agent(IAgent):
   context: list[ContextItem]
   emotion: Emotion
   emotion_delta: float = 0.5
+  cid: int
   _debug: bool
 
   @db_session
@@ -39,7 +40,8 @@ class Agent(IAgent):
       self.debugLog('no existing conversations found. initializing conversation.')
       conv = self.init_conversation(conversation_id)
 
-    system = select(m for m in Message if m.role == 'system').order_by(Message.index)
+    system = select(m for m in Message if m.role == 'system' and m.conversation == conv).order_by(Message.index)
+    self.cid = conv.id
 
     self.context = [{'role': msg.role, 'content': msg.text} for msg in system]
     res.create_initial_context(conv, self)
@@ -51,14 +53,25 @@ class Agent(IAgent):
   @property
   @db_session
   def initial_message(self) -> str:
-    return select(m for m in Message if m.role == 'system').order_by(Message.index).first().text
+    # yapf: disable
+    return select(
+      m for m in Message
+      if m.role == 'system' and m.conversation.id == self.cid
+    ).order_by(
+      Message.index,
+    ).first().text
+    # yapf: enable
 
   @initial_message.setter
   @db_session
   def initial_message(self, message: str) -> None:
-    msg = select(m for m in Message if m.role == 'system').order_by(Message.index).first()
+    # yapf: disable
+    msg = select(
+      m for m in Message if m.role == 'system' and m.conversation.id == self.cid
+    ).order_by(Message.index).first()
     msg.text = message
     self.context[0]['content'] = message
+    # yapf: enable
 
   @db_session
   def init_conversation(self, id: Optional[int]) -> Conversation:
@@ -119,12 +132,12 @@ evaluation:"""
 
   @db_session
   def talk(self, message: str, need_response: bool = True) -> str:
-    conv = select(c for c in Conversation).order_by(desc(Conversation.last_interact_at)).first()
+    c = Conversation.get(id=self.cid)
 
     vec1 = self.get_embedding_vector(message)
 
     context = self.context.copy()
-    recent = [*select(m for m in Message if m.role != 'system').order_by(desc(Message.index))[:20]]
+    recent = [*select(m for m in Message if m.role != 'system' and m.conversation == c).order_by(desc(Message.index))[:20]]
     recent.reverse()
     context.extend({'role': msg.role, 'content': msg.text} for msg in recent)
 
@@ -134,7 +147,7 @@ evaluation:"""
     # yapf: disable
     ctx = select(
       (m, raw_sql('similarity(m.embeddings, $search_vec) as "sim"', result_type=float))
-      for m in Message if m.embeddings is not None and m.index < oldest_recent_index
+      for m in Message if m.embeddings is not None and m.index < oldest_recent_index and m.conversation == c
     ).order_by(
       lambda m, s: desc(raw_sql('"sim"'))
     )[:10]
@@ -161,12 +174,12 @@ evaluation:"""
     context.append({'role': 'user', 'content': message})
 
     msg = Message(
-      index=len(conv.messages),
+      index=len(c.messages),
       role='user',
       text=message,
       embeddings=str(vec1),
       created_at=datetime.now(),
-      conversation=conv,
+      conversation=c,
     )
 
     if not need_response:
@@ -182,13 +195,13 @@ evaluation:"""
     vec2 = self.get_embedding_vector(text)
 
     msg = Message(
-      index=len(conv.messages),
+      index=len(c.messages),
       role='assistant',
       text=text,
       embeddings=str(vec2),
       created_at=datetime.now(),
-      conversation=conv
+      conversation=c
     )
 
-    conv.last_interact_at = datetime.now()
+    c.last_interact_at = datetime.now()
     return msg.text
