@@ -17,9 +17,10 @@ class OpenAIChatBot:
   default_response_ratio: float
   default_cmd_prefix: str = '!'
 
-  agents: dict[int, Agent] = {}
-  response_ratios: dict[int, float] = {}
-  cmd_prefixes: dict[int, str] = {}
+  agents: dict[int, Agent]
+  response_ratios: dict[int, float]
+  cmd_prefixes: dict[int, str]
+  latest_message_id: dict[int, bool]
 
   def __init__(self, secret: str, *, response_ratio=0.2) -> None:
     intents = Intents.default()
@@ -28,6 +29,10 @@ class OpenAIChatBot:
     self.client = Client(intents=intents)
     self.__secret = secret
     self.default_response_ratio = response_ratio
+    self.agents = {}
+    self.response_ratios = {}
+    self.cmd_prefixes = {}
+    self.latest_message_id = {}
     registerHandlers(self, self.client)
 
   def start(self) -> None:
