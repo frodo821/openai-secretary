@@ -1,11 +1,12 @@
 import atexit
+from asyncio import run
 from os.path import join, expanduser
 import sys
 from openai_secretary import init_agent
 from readline import read_history_file, set_history_length, write_history_file
 
 
-def main():
+async def main():
   history = join(expanduser("~"), ".oai_secretary", "input_history")
 
   try:
@@ -21,10 +22,10 @@ def main():
   while True:
     try:
       message = input('You: ')
-      print('Agent:', agent.talk(message))
+      print('Agent:', await agent.talk(message))
     except KeyboardInterrupt:
       print('Bye!')
       break
 
 
-main()
+run(main())

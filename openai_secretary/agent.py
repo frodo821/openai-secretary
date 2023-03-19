@@ -103,13 +103,13 @@ class Agent(IAgent):
 
     return conv
 
-  def get_embedding_vector(self, text: str) -> list[str]:
-    resp: OpenAIObject = oai.Embedding.create(model="text-embedding-ada-002", input=text)
+  async def get_embedding_vector(self, text: str) -> list[str]:
+    resp: OpenAIObject = await oai.Embedding.acreate(model="text-embedding-ada-002", input=text)
     obj = resp.get('data', [{}])[0]
     assert obj['object'] == 'embedding'
     return obj['embedding']
 
-  def get_emotional_vector(self, text: str) -> list[float]:
+  async def get_emotional_vector(self, text: str) -> list[float]:
     prompt = f"""evaluate how the text moves emotions along each of the five axes with a number within 20 steps -10 to 10.
 evaluation must be in the format: `[<anger>, <disgust>, <fear>, <joy>, <sadness>]`.
 extreme evaluations are not preferable.
@@ -117,7 +117,7 @@ extreme evaluations are not preferable.
 text:{text}
 evaluation:"""
     try:
-      resp: OpenAIObject = oai.Completion.create(
+      resp: OpenAIObject = await oai.Completion.acreate(
         model="text-davinci-003",
         prompt=prompt,
         temperature=0.2,
@@ -131,24 +131,17 @@ evaluation:"""
       )
       vec: list[int] = json.loads(resp["choices"][0]["text"].strip().split('\n')[0])
     except:
-      return [0, 0, 0, 0, 0]
+      return [0.0, 0.0, 0.0, 0.0, 0.0]
 
     return [i / 10 * self.emotion_delta for i in vec]
 
-  @db_session
-  def talk(self, message: str, need_response: bool = True) -> str:
-    c = Conversation.get(id=self.cid)
-
-    vec1 = self.get_embedding_vector(message)
-
+  def create_context_for_reply(self, c: Conversation, search_vec: str) -> list[ContextItem]:
     context = self.context.copy()
     recent = [
       *select(m for m in Message if m.role != 'system' and m.conversation == c).order_by(desc(Message.index))[:10]
     ]
     recent.reverse()
     context.extend({'role': msg.role, 'content': msg.text} for msg in recent)
-
-    search_vec = str(vec1)
     oldest_recent_index = recent[0].index if recent else 0
 
     # yapf: disable
@@ -164,7 +157,10 @@ evaluation:"""
       context.append({'role': 'system', 'content': f'関連する会話ログ(発言者: {m.role}): {m.text}'})
       self.debugLog(f'related message (similarity: {similarity}): {m.text}')
 
-    em = self.get_emotional_vector(message)
+    return context
+
+  async def update_emotion(self, message: str) -> None:
+    em = await self.get_emotional_vector(message)
     self.debugLog('emotion delta:', em)
     self.emotion.anger += em[0]
     self.emotion.disgust += em[1]
@@ -173,52 +169,59 @@ evaluation:"""
     self.emotion.sadness += em[4]
     self.debugLog('current emotion:', repr(self.emotion))
 
-    context.append({
-      'role': 'system',
-      'content': f'シミュレートされたあなたの今の感情は次の通りです。\n{self.emotion}\nこの感情に従って、会話を続けてください。',
-    })
+  async def talk(self, message: str, need_response: bool = True) -> str:
+    with db_session:
+      c = Conversation.get(id=self.cid)
 
-    context.append({'role': 'user', 'content': message})
+      vec1 = await self.get_embedding_vector(message)
+      context = self.create_context_for_reply(c, str(vec1))
+      await self.update_emotion(message)
 
-    msg = Message(
-      index=len(c.messages),
-      role='user',
-      text=message,
-      embeddings=str(vec1),
-      created_at=datetime.now(),
-      conversation=c,
-    )
+      context.append({
+        'role': 'system',
+        'content': f'シミュレートされたあなたの今の感情は次の通りです。\n{self.emotion}\nこの感情に従って、会話を続けてください。',
+      })
+      context.append({'role': 'user', 'content': message})
 
-    if not need_response:
-      return ''
+      msg = Message(
+        index=len(c.messages),
+        role='user',
+        text=message,
+        embeddings=str(vec1),
+        created_at=datetime.now(),
+        conversation=c,
+      )
 
-    while True:
-      try:
-        response = oai.ChatCompletion.create(
-          model='gpt-3.5-turbo',
-          messages=context,
-          temperature=0.8,
-          max_tokens=256,
-          request_timeout=(3.0, 20.0),
-          timeout=10.0,
-        )
-        break
-      except Exception as e:
-        self.debugLog('read error:', e)
-        pass
+      if not need_response:
+        return ''
 
-    text = response["choices"][0]["message"]["content"]
+      while True:
+        try:
+          response = await oai.ChatCompletion.acreate(
+            model='gpt-3.5-turbo',
+            messages=context,
+            temperature=0.8,
+            max_tokens=256,
+            request_timeout=(3.0, 20.0),
+            timeout=10.0,
+          )
+          break
+        except Exception as e:
+          self.debugLog('read error:', e)
+          pass
 
-    vec2 = self.get_embedding_vector(text)
+      text = response["choices"][0]["message"]["content"]
 
-    msg = Message(
-      index=len(c.messages),
-      role='assistant',
-      text=text,
-      embeddings=str(vec2),
-      created_at=datetime.now(),
-      conversation=c
-    )
+      vec2 = await self.get_embedding_vector(text)
 
-    c.last_interact_at = datetime.now()
-    return msg.text
+      msg = Message(
+        index=len(c.messages),
+        role='assistant',
+        text=text,
+        embeddings=str(vec2),
+        created_at=datetime.now(),
+        conversation=c
+      )
+
+      c.last_interact_at = datetime.now()
+      return msg.text
