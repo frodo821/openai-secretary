@@ -59,6 +59,14 @@ class OpenAIChatBot:
     self.agents[message.channel.id].initial_message = args
     await message.channel.send(f'`[SYSTEM]` 初期プロンプトを「{self.agents[message.channel.id].initial_message}」に更新しました。')
 
+  async def cmd_prefix(self, message: Message, args: str) -> None:
+    if not args:
+      await message.channel.send(f'`[SYSTEM]` 現在のコマンドプレフィックスは `{self.cmd_prefixes[message.channel.id]}` です。')
+      return
+
+    self.cmd_prefixes[message.channel.id] = args.strip()
+    await message.channel.send(f'`[SYSTEM]` コマンドプレフィックスを `{self.cmd_prefixes[message.channel.id]}` に更新しました。')
+
   async def cmd_debug(self, message: Message, args: str) -> None:
     cid = message.channel.id
     if not args:
