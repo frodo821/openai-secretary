@@ -71,7 +71,9 @@ class OpenAIChatBot:
     cid = message.channel.id
     if not args:
       await message.channel.send(
-        f'`[SYSTEM]` 現在のデバッグモードは{"有効" if self.agents[cid]._debug else "無効"}です。',
+        f"[SYSTEM] `{self.cmd_prefixes[cid]}debug` 使用法:\n"
+        f"・`{self.cmd_prefixes[cid]}debug console (on | off)` - コンソールデバッグを有効または無効にします。\n"
+        f"・`{self.cmd_prefixes[cid]}debug emotion` - 現在の感情値を表示します。\n",
       )
       return
 
@@ -82,6 +84,10 @@ class OpenAIChatBot:
       case ['console', 'off']:
         self.agents[cid]._debug = False
         await message.channel.send(f'`[SYSTEM]` コンソールデバッグを無効に切り替えました。')
+      case ['console']:
+        await message.channel.send(
+          f'`[SYSTEM]` 現在のデバッグモードは{"有効" if self.agents[cid]._debug else "無効"}です。',
+        )
       case ['emotion']:
         await message.channel.send(f'`[SYSTEM]` 現在の感情は{repr(self.agents[cid].emotion)}です。')
 
