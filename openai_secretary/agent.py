@@ -185,10 +185,17 @@ evaluation:"""
     if not need_response:
       return ''
 
-    response = oai.ChatCompletion.create(
-      model='gpt-3.5-turbo',
-      messages=context,
-    )
+    while True:
+      try:
+        response = oai.ChatCompletion.create(
+          model='gpt-3.5-turbo',
+          messages=context,
+          request_timeout=(3.0, 20.0),
+        )
+        break
+      except Exception as e:
+        self.debugLog('read error:', e)
+        pass
 
     text = response["choices"][0]["message"]["content"]
 
