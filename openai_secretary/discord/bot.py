@@ -15,6 +15,7 @@ class OpenAIChatBot:
   client: Client
   __secret: str
   default_response_ratio: float
+  default_cmd_prefix: str = '!'
 
   agents: dict[int, Agent] = {}
   response_ratios: dict[int, float] = {}
@@ -75,9 +76,9 @@ class OpenAIChatBot:
     cid = message.channel.id
 
     if cid not in self.agents:
-      self.agents[message.channel.id] = init_agent(debug=False, conversation_id=cid)
+      self.agents[message.channel.id] = init_agent(debug=True, conversation_id=cid)
       self.response_ratios[cid] = self.default_response_ratio
-      self.cmd_prefixes[cid] = '!'
+      self.cmd_prefixes[cid] = self.default_cmd_prefix
 
     if message.author == self.client.user:
       return
@@ -94,7 +95,9 @@ class OpenAIChatBot:
         await message.channel.send(f'`[SYSTEM]` コマンド「{cmd}」は存在しません。')
       return
 
-    mentioned = self.client.user in message.mentions
+    mentioned = self.client.user in message.mentions or any(
+      any(self.client.user == mem._user for mem in role.members) for role in message.role_mentions
+    )
 
     if random() < self.response_ratios[cid] or mentioned:
       await message.channel.typing()
