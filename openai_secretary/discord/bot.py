@@ -107,39 +107,40 @@ class OpenAIChatBot:
 
   async def on_message(self, message: Message) -> None:
     cid = message.channel.id
+    self.latest_message_id[cid] = message.id
 
     if cid not in self.agents:
       self.agents[message.channel.id] = init_agent(debug=True, conversation_id=cid)
       self.response_ratios[cid] = self.default_response_ratio
       self.cmd_prefixes[cid] = self.default_cmd_prefix
 
+    # 自分のメッセージは無視
     if message.author == self.client.user:
       return
 
-    if message.mentions and self.client.user not in message.mentions:
+    # メッセージが返信ではなく、メンションがあり、かつメンションに自分が含まれていない場合は無視
+    if not message.reference and message.mentions and self.client.user not in message.mentions:
       return
 
     # メッセージがコマンドプレフィクスから始まる場合はコマンドとして処理
     if message.content.startswith(self.cmd_prefixes[cid]):
       return await self.process_command(message)
 
-    mentioned = self.client.user in message.mentions or any(
-      any(self.client.user == mem._user for mem in role.members) for role in message.role_mentions
-    )
+    mentioned = self.is_mentioned(message)
 
-    if random() < self.response_ratios[cid] or mentioned:
-      await message.channel.typing()
-      text = self.agents[cid].talk(
-        f"{message.author.display_name}「{message.content}」",
-        need_response=True,
-      )
+    if not self.latest_message_id[cid] and (random() < self.response_ratios[cid] or mentioned):
+      async with await message.channel.typing():
+        text = await self.agents[cid].talk(
+          f"{message.author.display_name}「{message.clean_content}」",
+          need_response=True,
+        )
 
-      if mentioned:
+      if mentioned or message.reference:
         await message.reply(text)
-      else:
+      elif self.latest_message_id[cid] == message.id:
         await message.channel.send(text)
     else:
-      self.agents[cid].talk(
-        f"{message.author.display_name}「{message.content}」",
+      await self.agents[cid].talk(
+        f"{message.author.display_name}「{message.clean_content}」",
         need_response=False,
       )
