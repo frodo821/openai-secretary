@@ -116,17 +116,22 @@ extreme evaluations are not preferable.
 
 text:{text}
 evaluation:"""
-    resp: OpenAIObject = oai.Completion.create(
-      model="text-davinci-003",
-      prompt=prompt,
-      temperature=0.2,
-      max_tokens=64,
-      top_p=1,
-      best_of=3,
-      frequency_penalty=0,
-      presence_penalty=0,
-    )
-    vec: list[int] = json.loads(resp["choices"][0]["text"].strip().split('\n')[0])
+    try:
+      resp: OpenAIObject = oai.Completion.create(
+        model="text-davinci-003",
+        prompt=prompt,
+        temperature=0.2,
+        max_tokens=64,
+        top_p=1,
+        best_of=3,
+        frequency_penalty=0,
+        presence_penalty=0,
+        request_timeout=10.0,
+        timeout=5.0,
+      )
+      vec: list[int] = json.loads(resp["choices"][0]["text"].strip().split('\n')[0])
+    except:
+      return [0, 0, 0, 0, 0]
 
     return [i / 10 * self.emotion_delta for i in vec]
 
@@ -137,7 +142,9 @@ evaluation:"""
     vec1 = self.get_embedding_vector(message)
 
     context = self.context.copy()
-    recent = [*select(m for m in Message if m.role != 'system' and m.conversation == c).order_by(desc(Message.index))[:20]]
+    recent = [
+      *select(m for m in Message if m.role != 'system' and m.conversation == c).order_by(desc(Message.index))[:10]
+    ]
     recent.reverse()
     context.extend({'role': msg.role, 'content': msg.text} for msg in recent)
 
@@ -190,7 +197,10 @@ evaluation:"""
         response = oai.ChatCompletion.create(
           model='gpt-3.5-turbo',
           messages=context,
+          temperature=0.8,
+          max_tokens=256,
           request_timeout=(3.0, 20.0),
+          timeout=10.0,
         )
         break
       except Exception as e:
