@@ -101,7 +101,7 @@ class OpenAIChatBot:
     return
   
   def is_mentioned(self, message: Message) -> bool:
-    return self.client.user in message.mentions or any(
+    return not message.reference and self.client.user in message.mentions or any(
       any(self.client.user == mem._user for mem in role.members) for role in message.role_mentions
     )
 
