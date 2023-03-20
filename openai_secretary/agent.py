@@ -162,11 +162,7 @@ evaluation:"""
   async def update_emotion(self, message: str) -> None:
     em = await self.get_emotional_vector(message)
     self.debugLog('emotion delta:', em)
-    self.emotion.anger += em[0]
-    self.emotion.disgust += em[1]
-    self.emotion.fear += em[2]
-    self.emotion.joy += em[3]
-    self.emotion.sadness += em[4]
+    self.emotion += em
     self.debugLog('current emotion:', repr(self.emotion))
 
   async def talk(self, message: str, need_response: bool = True) -> str:
@@ -177,10 +173,7 @@ evaluation:"""
       context = self.create_context_for_reply(c, str(vec1))
       await self.update_emotion(message)
 
-      context.append({
-        'role': 'system',
-        'content': f'シミュレートされたあなたの今の感情は次の通りです。\n{self.emotion}\nこの感情に従って、会話を続けてください。',
-      })
+      context.append({'role': 'system', 'content': f'あなたの今の心情は{self.emotion}である。'})
       context.append({'role': 'user', 'content': message})
 
       msg = Message(
