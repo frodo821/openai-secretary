@@ -204,6 +204,8 @@ evaluation:"""
         self.debugLog('no response needed')
         return ''
 
+      self.debugLog(json.dumps(context, indent=2, ensure_ascii=False))
+
       while True:
         try:
           response = await oai.ChatCompletion.acreate(

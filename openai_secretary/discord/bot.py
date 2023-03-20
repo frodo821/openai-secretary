@@ -226,6 +226,9 @@ class OpenAIChatBot:
     if message.content.startswith(self.prefix(cid)):
       return await self.process_command(message)
 
+    if self.response_ratio(cid) <= 0.0:
+      return
+
     mentioned = self.is_mentioned(message)
 
     prev = self.agents[cid].emotion.frozen
