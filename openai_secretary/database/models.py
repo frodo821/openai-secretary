@@ -17,6 +17,26 @@ class Conversation(db.Entity):
   last_interact_at = orm.Required(datetime)
 
 
+class SavedEmotion(db.Entity):
+  id = orm.PrimaryKey(int, auto=True, size=64)
+  emotion_set = orm.Required(str)
+
+
+class Intimacy(db.Entity):
+  id = orm.PrimaryKey(int, auto=True)
+  channel_id = orm.Required(int, size=64)
+  user_id = orm.Required(int, size=64)
+  value = orm.Required(float)
+
+  @classmethod
+  @orm.db_session
+  def get_value(cls, channel_id: int, user_id: int) -> float:
+    intimacy = cls.get(channel_id=channel_id, user_id=user_id)
+    if intimacy is None:
+      return 0
+    return intimacy.value
+
+
 class Message(db.Entity):
   id = orm.PrimaryKey(int, auto=True, size=64)
   index = orm.Required(int)

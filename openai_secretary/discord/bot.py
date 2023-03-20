@@ -1,4 +1,6 @@
+import asyncio
 from json import dumps, loads
+from logging import getLogger
 from random import random
 from typing import Any, Required, TypedDict
 from discord.flags import Intents
@@ -6,7 +8,9 @@ from discord.client import Client
 from discord.message import Message
 from openai_secretary import Agent, init_agent
 from pony.orm import db_session
-from openai_secretary.database.models import Settings
+from openai_secretary.database.models import Settings, Intimacy
+from openai_secretary.resource.emotion import EmotionDelta
+from openai_secretary.resource.resources import compute_intimacy_delta, intimacy_prompt
 
 
 class SettingsDict(TypedDict):
@@ -20,6 +24,9 @@ def registerHandlers(impl: Any, client: Client) -> None:
     client.event(getattr(impl, attr))
 
 
+logger = getLogger('discord.bot')
+
+
 class OpenAIChatBot:
   client: Client
   __secret: str
@@ -29,6 +36,7 @@ class OpenAIChatBot:
   settings: dict[int, SettingsDict]
   agents: dict[int, Agent]
   latest_message_id: dict[int, bool]
+  emotion_delta: dict[int, dict[int, EmotionDelta]]
 
   def __init__(self, secret: str, *, response_ratio=0.2) -> None:
     intents = Intents.default()
@@ -40,11 +48,13 @@ class OpenAIChatBot:
     self.agents = {}
     self.settings = {}
     self.latest_message_id = {}
+    self.emotion_delta = {}
+    self.task = asyncio.get_event_loop().create_task(self.update_intimacy())
     registerHandlers(self, self.client)
 
   def prefix(self, channel_id: int) -> str:
     return self.settings[channel_id]['cmd_prefix']
-  
+
   def response_ratio(self, channel_id: int) -> float:
     return self.settings[channel_id]['response_ratio']
 
@@ -71,6 +81,27 @@ class OpenAIChatBot:
 
   async def on_ready(self) -> None:
     print(f'Logged in as {self.client.user}')
+
+  async def update_intimacy(self) -> None:
+    while True:
+      # update intimacy every 15 minutes
+      await asyncio.sleep(15*60)
+      logger.info('updating intimacy...')
+      for cid, deltas in self.emotion_delta.items():
+        for uid, delta in deltas.items():
+          value = compute_intimacy_delta(delta)
+          with db_session:
+            intimacy = Intimacy.get(channel_id=cid, user_id=uid)
+            logger.info(f'intimacy for user {uid} in channel {cid} is updated by {value}.')
+            if not intimacy:
+              Intimacy(
+                channel_id=cid,
+                user_id=uid,
+                value=value,
+              )
+            else:
+              intimacy.value += value
+        deltas.clear()
 
   async def cmd_response_ratio(self, message: Message, args: str) -> None:
     cid = message.channel.id
@@ -110,6 +141,7 @@ class OpenAIChatBot:
         f"[SYSTEM] `{self.prefix(cid)}debug` 使用法:\n"
         f"・`{self.prefix(cid)}debug console (on | off)` - コンソールデバッグを有効または無効にします。\n"
         f"・`{self.prefix(cid)}debug emotion` - 現在の感情値を表示します。\n",
+        f"・`{self.prefix(cid)}debug intimacy [@user]` - 現在の親密度を表示します。\n",
       )
       return
 
@@ -128,6 +160,20 @@ class OpenAIChatBot:
         )
       case ['emotion']:
         await message.channel.send(f'`[SYSTEM]` 現在の感情は{repr(self.agents[cid].emotion)}です。')
+      case ['intimacy', *_]:
+        mention = message.mentions[0].id
+        value = Intimacy.get_value(channel_id=cid, user_id=message.mentions[0].id)
+        await message.channel.send(f'`[SYSTEM]` 現在の <@!{mention}> に対する親密度は{value}です。({intimacy_prompt(value)[4:-4]})')
+      case ['intimacy']:
+        value = Intimacy.get_value(channel_id=cid, user_id=message.author.id)
+        await message.channel.send(f'`[SYSTEM]` 現在のあなたに対する親密度は{value}です。({intimacy_prompt(value)[4:-4]})')
+      case _:
+        await message.channel.send(
+          f"[SYSTEM] `{self.prefix(cid)}debug` 使用法:\n"
+          f"・`{self.prefix(cid)}debug console (on | off)` - コンソールデバッグを有効または無効にします。\n"
+          f"・`{self.prefix(cid)}debug emotion` - 現在の感情値を表示します。\n",
+          f"・`{self.prefix(cid)}debug intimacy [@user]` - 現在の親密度を表示します。\n",
+        )
 
   async def process_command(self, message: Message) -> None:
     cmd, *args = message.content.strip().split(None, 1)
@@ -149,6 +195,7 @@ class OpenAIChatBot:
 
     if cid not in self.agents:
       self.init_settings(cid)
+      self.emotion_delta[cid] = {}
       self.agents[message.channel.id] = init_agent(
         debug=self.settings[cid]['_debug'],
         conversation_id=cid,
@@ -168,10 +215,13 @@ class OpenAIChatBot:
 
     mentioned = self.is_mentioned(message)
 
+    prev = self.agents[cid].emotion.frozen
+
     if random() < self.response_ratio(cid) or mentioned:
       async with message.channel.typing():
         text = await self.agents[cid].talk(
           f"{message.author.display_name}:{message.clean_content}",
+          injected_system_message=intimacy_prompt(Intimacy.get_value(cid, message.author.id)),
           need_response=True,
         )
 
@@ -184,3 +234,9 @@ class OpenAIChatBot:
         f"{message.author.display_name}「{message.clean_content}」",
         need_response=False,
       )
+
+    delta: EmotionDelta = self.agents[cid].emotion.frozen - prev
+    if message.author.id in self.emotion_delta[cid]:
+      self.emotion_delta[cid][message.author.id] += delta
+    else:
+      self.emotion_delta[cid][message.author.id] = delta

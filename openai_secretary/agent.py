@@ -1,13 +1,13 @@
 from datetime import datetime
 import json
-from typing import Any, Optional
+from typing import Any
 
 import openai as oai
 from openai.openai_object import OpenAIObject
 from pony.orm import db_session, desc, select, raw_sql
 
 from openai_secretary.database import Master
-from openai_secretary.database.models import Conversation, Message
+from openai_secretary.database.models import Conversation, Message, SavedEmotion
 from openai_secretary.resource import ContextItem, Emotion, IAgent
 import openai_secretary.resource.resources as res
 
@@ -20,7 +20,7 @@ class Agent(IAgent):
   _debug: bool
 
   @db_session
-  def __init__(self, api_key: Optional[str], *, debug: bool = False, conversation_id: Optional[int] = None):
+  def __init__(self, api_key: str | None, *, debug: bool = False, conversation_id: int | None = None):
     self._debug = debug
     self.debugLog('debug logs on.')
 
@@ -42,6 +42,13 @@ class Agent(IAgent):
 
     system = select(m for m in Message if m.role == 'system' and m.conversation == conv).order_by(Message.index)
     self.cid = conv.id
+
+    emo = SavedEmotion.get(id=self.cid)
+    if emo is None:
+      self.emotion = Emotion.random_emotion()
+      SavedEmotion(id=self.cid, emotion_set=json.dumps(self.emotion.json()))
+    else:
+      self.emotion = Emotion(*json.loads(emo.emotion_set))
 
     self.context = [{'role': msg.role, 'content': msg.text} for msg in system]
     res.create_initial_context(conv, self)
@@ -74,7 +81,7 @@ class Agent(IAgent):
     # yapf: enable
 
   @db_session
-  def init_conversation(self, id: Optional[int]) -> Conversation:
+  def init_conversation(self, id: int | None) -> Conversation:
     if id is None:
       conv = Conversation(
         name='Default',
@@ -165,7 +172,7 @@ evaluation:"""
     self.emotion += em
     self.debugLog('current emotion:', repr(self.emotion))
 
-  async def talk(self, message: str, need_response: bool = True) -> str:
+  async def talk(self, message: str, injected_system_message: str | None = None, need_response: bool = True) -> str:
     with db_session:
       c = Conversation.get(id=self.cid)
 
@@ -173,7 +180,14 @@ evaluation:"""
       context = self.create_context_for_reply(c, str(vec1))
       await self.update_emotion(message)
 
+      s_emo = SavedEmotion.get(id=self.cid)
+      s_emo.emotion_set = json.dumps(self.emotion.json())
+
       context.append({'role': 'system', 'content': f'あなたの今の心情は{self.emotion}である。'})
+
+      if injected_system_message is not None:
+        context.append({'role': 'system', 'content': injected_system_message})
+
       context.append({'role': 'user', 'content': message})
 
       msg = Message(
