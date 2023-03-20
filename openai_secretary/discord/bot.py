@@ -161,12 +161,18 @@ class OpenAIChatBot:
       case ['emotion']:
         await message.channel.send(f'`[SYSTEM]` 現在の感情は{repr(self.agents[cid].emotion)}です。')
       case ['intimacy', *_]:
-        mention = message.mentions[0].id
-        value = Intimacy.get_value(channel_id=cid, user_id=message.mentions[0].id)
-        await message.channel.send(f'`[SYSTEM]` 現在の <@!{mention}> に対する親密度は{value}です。({intimacy_prompt(value)[4:-4]})')
+        mention = message.mentions[0]
+        value = Intimacy.get_value(channel_id=cid, user_id=mention.id)
+        await message.channel.send(
+          f'`[SYSTEM]` 現在の <@!{mention.id}> に対する親密度は{value}です。'
+          f'({intimacy_prompt(value, mention.display_name)[4:-4]})'
+        )
       case ['intimacy']:
         value = Intimacy.get_value(channel_id=cid, user_id=message.author.id)
-        await message.channel.send(f'`[SYSTEM]` 現在のあなたに対する親密度は{value}です。({intimacy_prompt(value)[4:-4]})')
+        await message.channel.send(
+          f'`[SYSTEM]` 現在のあなたに対する親密度は{value}です。'
+          f'({intimacy_prompt(value, message.author.display_name)[4:-4]})'
+        )
       case _:
         await message.channel.send(
           f"[SYSTEM] `{self.prefix(cid)}debug` 使用法:\n"
@@ -221,7 +227,10 @@ class OpenAIChatBot:
       async with message.channel.typing():
         text = await self.agents[cid].talk(
           f"{message.author.display_name}:{message.clean_content}",
-          injected_system_message=intimacy_prompt(Intimacy.get_value(cid, message.author.id)),
+          injected_system_message=intimacy_prompt(
+            Intimacy.get_value(cid, message.author.id),
+            message.author.display_name,
+          ),
           need_response=True,
         )
 
