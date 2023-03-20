@@ -193,6 +193,7 @@ evaluation:"""
       )
 
       if not need_response:
+        self.debugLog('no response needed')
         return ''
 
       while True:
@@ -207,10 +208,12 @@ evaluation:"""
           )
           break
         except Exception as e:
-          self.debugLog('read error:', e)
+          self.debugLog('read error:', type(e), e)
           pass
 
       text = response["choices"][0]["message"]["content"]
+
+      self.debugLog("tokens consumed:", response["usage"]["total_tokens"])
 
       vec2 = await self.get_embedding_vector(text)
 
