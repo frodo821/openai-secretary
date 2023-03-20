@@ -128,7 +128,7 @@ class OpenAIChatBot:
 
     mentioned = self.is_mentioned(message)
 
-    if not self.latest_message_id[cid] and (random() < self.response_ratios[cid] or mentioned):
+    if random() < self.response_ratios[cid] or mentioned:
       async with await message.channel.typing():
         text = await self.agents[cid].talk(
           f"{message.author.display_name}「{message.clean_content}」",
