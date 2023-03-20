@@ -25,3 +25,8 @@ class Message(db.Entity):
   embeddings = orm.Optional(str, nullable=True)
   created_at = orm.Required(datetime)
   conversation = orm.Required(Conversation)
+
+
+class Settings(db.Entity):
+  id = orm.PrimaryKey(int, auto=True, size=64)
+  settings = orm.Required(str)
