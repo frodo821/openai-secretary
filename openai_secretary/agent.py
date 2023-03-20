@@ -4,6 +4,7 @@ from typing import Any
 
 import openai as oai
 from openai.openai_object import OpenAIObject
+from openai.error import Timeout
 from pony.orm import db_session, desc, select, raw_sql
 
 from openai_secretary.database import Master
@@ -214,7 +215,7 @@ evaluation:"""
             timeout=10.0,
           )
           break
-        except Exception as e:
+        except Timeout as e:
           self.debugLog('read error:', type(e), e)
           pass
 

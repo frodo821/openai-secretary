@@ -36,6 +36,24 @@ class Intimacy(db.Entity):
       return 0
     return intimacy.value
 
+  @classmethod
+  @orm.db_session
+  def set_value(cls, channel_id: int, user_id: int, value: float) -> None:
+    intimacy = cls.get(channel_id=channel_id, user_id=user_id)
+    if intimacy is None:
+      cls(channel_id=channel_id, user_id=user_id, value=value)
+    else:
+      intimacy.value = value
+
+  @classmethod
+  @orm.db_session
+  def add_value(cls, channel_id: int, user_id: int, value: float) -> None:
+    intimacy = cls.get(channel_id=channel_id, user_id=user_id)
+    if intimacy is None:
+      cls(channel_id=channel_id, user_id=user_id, value=value)
+    else:
+      intimacy.value += value
+
 
 class Message(db.Entity):
   id = orm.PrimaryKey(int, auto=True, size=64)
