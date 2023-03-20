@@ -104,7 +104,7 @@ class Agent(IAgent):
     return conv
 
   async def get_embedding_vector(self, text: str) -> list[str]:
-    resp: OpenAIObject = await oai.Embedding.acreate(model="text-embedding-ada-002", input=text)
+    resp: OpenAIObject = await oai.Embedding.acreate(model="text-search-ada-doc-001", input=text)
     obj = resp.get('data', [{}])[0]
     assert obj['object'] == 'embedding'
     return obj['embedding']
@@ -154,7 +154,7 @@ evaluation:"""
     # yapf: enable
 
     for m, similarity in ctx:
-      context.append({'role': 'system', 'content': f'関連する会話ログ(発言者: {m.role}): {m.text}'})
+      context.append({'role': 'system', 'content': f'過去にこんな会話をした:{m.text}'})
       self.debugLog(f'related message (similarity: {similarity}): {m.text}')
 
     return context
