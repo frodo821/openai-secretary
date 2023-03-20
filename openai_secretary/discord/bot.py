@@ -37,6 +37,7 @@ class OpenAIChatBot:
   agents: dict[int, Agent]
   latest_message_id: dict[int, bool]
   emotion_delta: dict[int, dict[int, EmotionDelta]]
+  task: asyncio.Task[None]
 
   def __init__(self, secret: str, *, response_ratio=0.2) -> None:
     intents = Intents.default()
@@ -49,7 +50,6 @@ class OpenAIChatBot:
     self.settings = {}
     self.latest_message_id = {}
     self.emotion_delta = {}
-    self.task = asyncio.get_event_loop().create_task(self.update_intimacy())
     registerHandlers(self, self.client)
 
   def prefix(self, channel_id: int) -> str:
@@ -80,9 +80,12 @@ class OpenAIChatBot:
     self.client.run(self.__secret)
 
   async def on_ready(self) -> None:
-    print(f'Logged in as {self.client.user}')
+    self.task = asyncio.get_event_loop().create_task(self.update_intimacy())
+    logger.info(f'Logged in as {self.client.user}')
+    await self.task
 
   async def update_intimacy(self) -> None:
+    logger.info('intimacy updater has been started.')
     while True:
       # update intimacy every 15 minutes
       await asyncio.sleep(15*60)
@@ -90,17 +93,8 @@ class OpenAIChatBot:
       for cid, deltas in self.emotion_delta.items():
         for uid, delta in deltas.items():
           value = compute_intimacy_delta(delta)
-          with db_session:
-            intimacy = Intimacy.get(channel_id=cid, user_id=uid)
-            logger.info(f'intimacy for user {uid} in channel {cid} is updated by {value}.')
-            if not intimacy:
-              Intimacy(
-                channel_id=cid,
-                user_id=uid,
-                value=value,
-              )
-            else:
-              intimacy.value += value
+          Intimacy.add_value(channel_id=cid, user_id=uid, value=value)
+          logger.info(f'intimacy for user {uid} in channel {cid} is updated by {value}.')
         deltas.clear()
 
   async def cmd_response_ratio(self, message: Message, args: str) -> None:
@@ -160,19 +154,32 @@ class OpenAIChatBot:
         )
       case ['emotion']:
         await message.channel.send(f'`[SYSTEM]` 現在の感情は{repr(self.agents[cid].emotion)}です。')
-      case ['intimacy', *_]:
-        mention = message.mentions[0]
-        value = Intimacy.get_value(channel_id=cid, user_id=mention.id)
-        await message.channel.send(
-          f'`[SYSTEM]` 現在の <@!{mention.id}> に対する親密度は{value}です。'
-          f'({intimacy_prompt(value, mention.display_name)[4:-4]})'
-        )
       case ['intimacy']:
         value = Intimacy.get_value(channel_id=cid, user_id=message.author.id)
-        await message.channel.send(
-          f'`[SYSTEM]` 現在のあなたに対する親密度は{value}です。'
-          f'({intimacy_prompt(value, message.author.display_name)[4:-4]})'
-        )
+        prompt = intimacy_prompt(value, message.author.display_name)
+        prompt = prompt[4:-4] if prompt else '中立'
+        await message.channel.send(f'`[SYSTEM]` 現在のあなたに対する親密度は{value}です。({prompt})')
+      case ['intimacy', 'set', value, *_]:
+        value = float(value)
+        if not message.mentions:
+          Intimacy.set_value(channel_id=cid, user_id=message.author.id, value=value)
+          prompt = intimacy_prompt(value, message.author.display_name)
+          prompt = prompt[4:-4] if prompt else '中立'
+          await message.channel.send(f'`[SYSTEM]` あなたに対する親密度を{value}({prompt})に更新しました。')
+        else:
+          for mention in message.mentions:
+            Intimacy.set_value(channel_id=cid, user_id=mention.id, value=value)
+            prompt = intimacy_prompt(value, mention.display_name)
+            prompt = prompt[4:-4] if prompt else '中立'
+            await message.channel.send(f'`[SYSTEM]` <@!{mention.id}> に対する親密度を{value}({prompt})に更新しました。')
+      case ['intimacy', _]:
+        if not message.mentions:
+          await message.channel.send(f'`[SYSTEM]` ユーザーを指定してください。')
+        mention = message.mentions[0]
+        value = Intimacy.get_value(channel_id=cid, user_id=mention.id)
+        prompt = intimacy_prompt(value, mention.display_name)
+        prompt = prompt[4:-4] if prompt else '中立'
+        await message.channel.send(f'`[SYSTEM]` 現在の <@!{mention.id}> に対する親密度は{value}です。({prompt})')
       case _:
         await message.channel.send(
           f"[SYSTEM] `{self.prefix(cid)}debug` 使用法:\n"
