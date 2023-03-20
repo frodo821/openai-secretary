@@ -73,4 +73,4 @@ intimacy_ref_vector = EmotionDelta(-1, -1, -1, 1, -1).normalized
 
 def compute_intimacy_delta(de: EmotionDelta) -> float:
   di = de @ intimacy_ref_vector
-  return di / 10.0
+  return di * 0.4
