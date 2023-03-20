@@ -171,7 +171,7 @@ class OpenAIChatBot:
     if random() < self.response_ratio(cid) or mentioned:
       async with message.channel.typing():
         text = await self.agents[cid].talk(
-          f"{message.author.display_name}「{message.clean_content}」",
+          f"{message.author.display_name}:{message.clean_content}",
           need_response=True,
         )
 
