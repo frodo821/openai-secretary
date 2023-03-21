@@ -24,7 +24,7 @@ def registerHandlers(impl: Any, client: Client) -> None:
     client.event(getattr(impl, attr))
 
 
-logger = getLogger('discord.bot')
+logger = getLogger('oai_chatbot.bot')
 
 
 class OpenAIChatBot:
@@ -77,7 +77,7 @@ class OpenAIChatBot:
       settings.settings = dumps(self.settings[channel_id])
 
   def start(self) -> None:
-    self.client.run(self.__secret)
+    self.client.run(self.__secret, root_logger=True)
 
   async def on_ready(self) -> None:
     self.task = asyncio.get_event_loop().create_task(self.update_intimacy())

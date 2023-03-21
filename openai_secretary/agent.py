@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+import logging
 from typing import Any
 
 import openai as oai
@@ -12,18 +13,27 @@ from openai_secretary.database.models import Conversation, Message, SavedEmotion
 from openai_secretary.resource import ContextItem, Emotion, IAgent
 import openai_secretary.resource.resources as res
 
+logger = logging.getLogger('oai_chatbot.agent')
+
 
 class Agent(IAgent):
   context: list[ContextItem]
   emotion: Emotion
   emotion_delta: float = 0.5
   cid: int
-  _debug: bool
+
+  @property
+  def _debug(self) -> bool:
+    return logger.level <= logging.DEBUG
+
+  @_debug.setter
+  def _debug(self, value: bool) -> None:
+    logger.setLevel(logging.DEBUG if value else logging.INFO)
 
   @db_session
   def __init__(self, api_key: str | None, *, debug: bool = False, conversation_id: int | None = None):
     self._debug = debug
-    self.debugLog('debug logs on.')
+    logger.debug('debug logs on.')
 
     master: Master | None = Master.select().order_by(desc(Master.version)).first()
 
@@ -38,7 +48,7 @@ class Agent(IAgent):
       conv = Conversation.select().order_by(desc(Conversation.last_interact_at)).first()
 
     if conv is None:
-      self.debugLog('no existing conversations found. initializing conversation.')
+      logger.debug('no existing conversations found. initializing conversation.')
       conv = self.init_conversation(conversation_id)
 
     system = select(m for m in Message if m.role == 'system' and m.conversation == conv).order_by(Message.index)
@@ -163,15 +173,15 @@ evaluation:"""
 
     for m, similarity in ctx:
       context.append({'role': 'system', 'content': f'過去にこんな会話をした:{m.text}'})
-      self.debugLog(f'related message (similarity: {similarity}): {m.text}')
+      logger.debug(f'related message (similarity: {similarity}): {m.text}')
 
     return context
 
   async def update_emotion(self, message: str) -> None:
     em = await self.get_emotional_vector(message)
-    self.debugLog('emotion delta:', em)
+    logger.debug(f'emotion delta: {em}')
     self.emotion += em
-    self.debugLog('current emotion:', repr(self.emotion))
+    logger.debug(f'current emotion: {repr(self.emotion)}')
 
   async def talk(self, message: str, injected_system_message: str | None = None, need_response: bool = True) -> str:
     with db_session:
@@ -201,10 +211,10 @@ evaluation:"""
       )
 
       if not need_response:
-        self.debugLog('no response needed')
+        logger.debug('no response needed')
         return ''
 
-      self.debugLog(json.dumps(context, indent=2, ensure_ascii=False))
+      logger.debug(json.dumps(context, indent=2, ensure_ascii=False))
 
       while True:
         try:
@@ -218,12 +228,15 @@ evaluation:"""
           )
           break
         except Timeout as e:
-          self.debugLog('read error:', type(e), e)
+          logger.warn(f'read error: {type(e)}: {e}')
           pass
+        except Exception as e:
+          logger.error(f'read error: {type(e)}: {e}')
+          raise
 
       text = response["choices"][0]["message"]["content"]
 
-      self.debugLog("tokens consumed:", response["usage"]["total_tokens"])
+      logger.debug(f'tokens consumed: {response["usage"]["total_tokens"]}')
 
       vec2 = await self.get_embedding_vector(text)
 
