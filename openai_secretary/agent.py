@@ -2,7 +2,7 @@ from datetime import datetime
 from os import linesep as LF
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 import openai as oai
 from openai.openai_object import OpenAIObject
@@ -12,6 +12,7 @@ from pony.orm import db_session, desc, select, raw_sql
 from openai_secretary.database import Master
 from openai_secretary.database.models import Conversation, Message, SavedEmotion
 from openai_secretary.resource import ContextItem, Emotion, IAgent
+from openai_secretary.resource.iagent import RoleType
 import openai_secretary.resource.resources as res
 
 logger = logging.getLogger('oai_chatbot.agent')
@@ -62,7 +63,7 @@ class Agent(IAgent):
     else:
       self.emotion = Emotion(*json.loads(emo.emotion_set))
 
-    self.context = [{'role': msg.role, 'content': msg.text} for msg in system]
+    self.context = [{'role': cast(RoleType, msg.role), 'content': msg.text} for msg in system]
     res.create_initial_context(conv, self)
 
   def debugLog(self, *args: Any) -> None:
@@ -70,26 +71,35 @@ class Agent(IAgent):
       print('[DEBUG]', *args)
 
   @property
-  @db_session
   def initial_message(self) -> str:
-    # yapf: disable
-    return select(
-      m for m in Message
-      if m.role == 'system' and m.conversation.id == self.cid
-    ).order_by(
-      Message.index,
-    ).first().text
+    with db_session:
+      # yapf: disable
+      msg = select(
+        m for m in Message
+        if m.role == 'system' and m.conversation.id == self.cid
+      ).order_by(
+        Message.index,
+      ).first()
+
+    if msg is None:
+      raise RuntimeError('initial message cannot be None.')
+
+    return msg.text
     # yapf: enable
 
   @initial_message.setter
-  @db_session
   def initial_message(self, message: str) -> None:
-    # yapf: disable
-    msg = select(
-      m for m in Message if m.role == 'system' and m.conversation.id == self.cid
-    ).order_by(Message.index).first()
-    msg.text = message
-    self.context[0]['content'] = message
+    with db_session:
+      # yapf: disable
+      msg = select(
+        m for m in Message if m.role == 'system' and m.conversation.id == self.cid
+      ).order_by(Message.index).first()
+
+      if msg is None:
+        raise RuntimeError('initial message cannot be None.')
+
+      msg.text = message
+      self.context[0]['content'] = message
     # yapf: enable
 
   @db_session
@@ -123,7 +133,7 @@ class Agent(IAgent):
     return conv
 
   async def get_embedding_vector(self, text: str) -> list[str]:
-    resp: OpenAIObject = await oai.Embedding.acreate(model="text-search-ada-doc-001", input=text)
+    resp = cast(dict, await oai.Embedding.acreate(model="text-search-ada-doc-001", input=text))
     obj = resp.get('data', [{}])[0]
     assert obj['object'] == 'embedding'
     return obj['embedding']
@@ -136,17 +146,20 @@ extreme evaluations are not preferable.
 text:{text}
 evaluation:"""
     try:
-      resp: OpenAIObject = await oai.Completion.acreate(
-        model="text-davinci-003",
-        prompt=prompt,
-        temperature=0.2,
-        max_tokens=64,
-        top_p=1,
-        best_of=3,
-        frequency_penalty=0,
-        presence_penalty=0,
-        request_timeout=10.0,
-        timeout=5.0,
+      resp = cast(
+        dict,
+        await oai.Completion.acreate(
+          model="text-davinci-003",
+          prompt=prompt,
+          temperature=0.2,
+          max_tokens=64,
+          top_p=1,
+          best_of=3,
+          frequency_penalty=0,
+          presence_penalty=0,
+          request_timeout=10.0,
+          timeout=5.0,
+        ),
       )
       vec: list[int] = json.loads(resp["choices"][0]["text"].strip().split('\n')[0])
     except:
@@ -160,7 +173,7 @@ evaluation:"""
       *select(m for m in Message if m.role != 'system' and m.conversation == c).order_by(desc(Message.index))[:10]
     ]
     recent.reverse()
-    context.extend({'role': msg.role, 'content': msg.text} for msg in recent)
+    context.extend({'role': cast(RoleType, msg.role), 'content': msg.text} for msg in recent)
     oldest_recent_index = recent[0].index if recent else 0
 
     # yapf: disable
@@ -225,13 +238,16 @@ evaluation:"""
 
       while True:
         try:
-          response = await oai.ChatCompletion.acreate(
-            model='gpt-3.5-turbo',
-            messages=context,
-            temperature=0.8,
-            max_tokens=256,
-            request_timeout=(3.0, 20.0),
-            timeout=10.0,
+          response = cast(
+            dict,
+            await oai.ChatCompletion.acreate(
+              model='gpt-3.5-turbo',
+              messages=context,
+              temperature=0.8,
+              max_tokens=256,
+              request_timeout=(3.0, 20.0),
+              timeout=10.0,
+            ),
           )
           break
         except Timeout as e:

@@ -53,7 +53,7 @@ def intimacy_prompt(intimacy: float, who: str, *, descriptive: bool = False) -> 
   if not descriptive:
     return f"あなたから{who}への親密度は{intimacy*100:.0f}%である。"
   if -0.2 < intimacy < 0.2:
-    return None
+    return f"{who}に対して中立的"
   if -0.4 < intimacy <= -0.2:
     return f"{who}が少し苦手"
   if -0.6 < intimacy <= -0.4:

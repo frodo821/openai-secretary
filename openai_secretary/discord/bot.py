@@ -35,7 +35,7 @@ class OpenAIChatBot:
 
   settings: dict[int, SettingsDict]
   agents: dict[int, Agent]
-  latest_message_id: dict[int, bool]
+  latest_message_id: dict[int, int]
   emotion_delta: dict[int, dict[int, EmotionDelta]]
   task: asyncio.Task[None]
 
@@ -124,7 +124,7 @@ class OpenAIChatBot:
       await message.channel.send(f'`[SYSTEM]` 現在のコマンドプレフィックスは `{self.prefix(cid)}` です。')
       return
 
-    self.settings[cid] = args.strip()
+    self.settings[cid]['cmd_prefix'] = args.strip()
     self.update_settings(cid)
     await message.channel.send(f'`[SYSTEM]` コマンドプレフィックスを `{self.prefix(cid)}` に更新しました。')
 
@@ -134,8 +134,8 @@ class OpenAIChatBot:
       await message.channel.send(
         f"[SYSTEM] `{self.prefix(cid)}debug` 使用法:\n"
         f"・`{self.prefix(cid)}debug console (on | off)` - コンソールデバッグを有効または無効にします。\n"
-        f"・`{self.prefix(cid)}debug emotion` - 現在の感情値を表示します。\n",
-        f"・`{self.prefix(cid)}debug intimacy [@user]` - 現在の親密度を表示します。\n",
+        f"・`{self.prefix(cid)}debug emotion` - 現在の感情値を表示します。\n"
+        f"・`{self.prefix(cid)}debug intimacy [@user]` - 現在の親密度を表示します。\n"
       )
       return
 
@@ -180,8 +180,8 @@ class OpenAIChatBot:
         await message.channel.send(
           f"[SYSTEM] `{self.prefix(cid)}debug` 使用法:\n"
           f"・`{self.prefix(cid)}debug console (on | off)` - コンソールデバッグを有効または無効にします。\n"
-          f"・`{self.prefix(cid)}debug emotion` - 現在の感情値を表示します。\n",
-          f"・`{self.prefix(cid)}debug intimacy [@user]` - 現在の親密度を表示します。\n",
+          f"・`{self.prefix(cid)}debug emotion` - 現在の感情値を表示します。\n"
+          f"・`{self.prefix(cid)}debug intimacy [@user]` - 現在の親密度を表示します。\n"
         )
 
   async def process_command(self, message: Message) -> None:

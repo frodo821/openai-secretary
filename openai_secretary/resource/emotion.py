@@ -1,10 +1,9 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from random import random
-from typing import ClassVar, TypeAlias
-from typing_extensions import override
+from typing import ClassVar, TypeAlias, overload
 
-floats5: TypeAlias = tuple[float, float, float, float, float]
+floats5: TypeAlias = tuple[float, float, float, float, float] | list[float]
 
 
 @dataclass(frozen=True)
@@ -193,11 +192,11 @@ class Emotion:
       _sadness=self.sadness + other[4],
     )
 
-  @override
+  @overload
   def __sub__(self, other: 'Emotion') -> EmotionDelta:
     ...
 
-  @override
+  @overload
   def __sub__(self, other: floats5 | EmotionDelta) -> 'Emotion':
     ...
 
