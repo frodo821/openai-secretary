@@ -1,4 +1,5 @@
 from datetime import datetime
+from os import linesep as LF
 import json
 import logging
 from typing import Any
@@ -127,11 +128,11 @@ class Agent(IAgent):
     assert obj['object'] == 'embedding'
     return obj['embedding']
 
-  async def get_emotional_vector(self, text: str) -> list[float]:
+  async def get_emotional_vector(self, text: str, context: str | None = None) -> list[float]:
     prompt = f"""evaluate how the text moves emotions along each of the five axes with a number within 20 steps -10 to 10.
 evaluation must be in the format: `[<anger>, <disgust>, <fear>, <joy>, <sadness>]`.
 extreme evaluations are not preferable.
-
+{f"{LF}context: {context}" if context is not None else ""}
 text:{text}
 evaluation:"""
     try:
@@ -177,19 +178,25 @@ evaluation:"""
 
     return context
 
-  async def update_emotion(self, message: str) -> None:
-    em = await self.get_emotional_vector(message)
+  async def update_emotion(self, message: str, emotion_context: str | None) -> None:
+    em = await self.get_emotional_vector(message, emotion_context)
     logger.debug(f'emotion delta: {em}')
     self.emotion += em
     logger.debug(f'current emotion: {repr(self.emotion)}')
 
-  async def talk(self, message: str, injected_system_message: str | None = None, need_response: bool = True) -> str:
+  async def talk(
+    self,
+    message: str,
+    injected_system_message: str | None = None,
+    need_response: bool = True,
+    emotion_context: str | None = None,
+  ) -> str:
     with db_session:
       c = Conversation.get(id=self.cid)
 
       vec1 = await self.get_embedding_vector(message)
       context = self.create_context_for_reply(c, str(vec1))
-      await self.update_emotion(message)
+      await self.update_emotion(message, emotion_context)
 
       s_emo = SavedEmotion.get(id=self.cid)
       s_emo.emotion_set = json.dumps(self.emotion.json())
