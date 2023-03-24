@@ -156,29 +156,25 @@ class OpenAIChatBot:
         await message.channel.send(f'`[SYSTEM]` 現在の感情は{repr(self.agents[cid].emotion)}です。')
       case ['intimacy']:
         value = Intimacy.get_value(channel_id=cid, user_id=message.author.id)
-        prompt = intimacy_prompt(value, message.author.display_name)
-        prompt = prompt[4:-4] if prompt else '中立'
+        prompt = intimacy_prompt(value, message.author.display_name, descriptive=True)
         await message.channel.send(f'`[SYSTEM]` 現在のあなたに対する親密度は{value}です。({prompt})')
       case ['intimacy', 'set', value, *_]:
         value = float(value)
         if not message.mentions:
           Intimacy.set_value(channel_id=cid, user_id=message.author.id, value=value)
-          prompt = intimacy_prompt(value, message.author.display_name)
-          prompt = prompt[4:-4] if prompt else '中立'
+          prompt = intimacy_prompt(value, message.author.display_name, descriptive=True)
           await message.channel.send(f'`[SYSTEM]` あなたに対する親密度を{value}({prompt})に更新しました。')
         else:
           for mention in message.mentions:
             Intimacy.set_value(channel_id=cid, user_id=mention.id, value=value)
-            prompt = intimacy_prompt(value, mention.display_name)
-            prompt = prompt[4:-4] if prompt else '中立'
+            prompt = intimacy_prompt(value, mention.display_name, descriptive=True)
             await message.channel.send(f'`[SYSTEM]` <@!{mention.id}> に対する親密度を{value}({prompt})に更新しました。')
       case ['intimacy', _]:
         if not message.mentions:
           await message.channel.send(f'`[SYSTEM]` ユーザーを指定してください。')
         mention = message.mentions[0]
         value = Intimacy.get_value(channel_id=cid, user_id=mention.id)
-        prompt = intimacy_prompt(value, mention.display_name)
-        prompt = prompt[4:-4] if prompt else '中立'
+        prompt = intimacy_prompt(value, mention.display_name, descriptive=True)
         await message.channel.send(f'`[SYSTEM]` 現在の <@!{mention.id}> に対する親密度は{value}です。({prompt})')
       case _:
         await message.channel.send(

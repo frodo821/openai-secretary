@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal, overload
 
 from openai_secretary.database.models import Conversation
 from openai_secretary.resource.iagent import IAgent, RoleType
@@ -33,7 +34,13 @@ def create_initial_context(conv: Conversation | None, agent: IAgent):
     agent.context.append({'role': 'system', 'content': '今回があなたの初めての起動です。'})
 
 
-def intimacy_prompt(intimacy: float, who: str) -> str | None:
+@overload
+def intimacy_prompt(intimacy: float, who: str) -> str | None: ...
+
+@overload
+def intimacy_prompt(intimacy: float, who: str, *, descriptive: Literal[True]) -> str: ...
+
+def intimacy_prompt(intimacy: float, who: str, *, descriptive: bool = False) -> str | None:
   """
   Generate intimacy prompt.
 
@@ -44,28 +51,30 @@ def intimacy_prompt(intimacy: float, who: str) -> str | None:
   Returns:
     str | None: Intimacy prompt.
   """
+  if not descriptive:
+    return f"あなたと{who}の親密度は{intimacy*100:.0f}%である。"
   if -0.2 < intimacy < 0.2:
     return None
   if -0.4 < intimacy <= -0.2:
-    return f"あなたは{who}が少し苦手である。"
+    return f"{who}が少し苦手"
   if -0.6 < intimacy <= -0.4:
-    return f"あなたは{who}が苦手である。"
+    return f"{who}が苦手"
   if -0.8 < intimacy <= -0.6:
-    return f"あなたは{who}が少し嫌いである。"
+    return f"{who}が少し嫌い"
   if -1.0 <= intimacy <= -0.8:
-    return f"あなたは{who}が嫌いである。"
+    return f"{who}が嫌い"
   if intimacy < -1.0:
-    return f"あなたは{who}を嫌悪している。"
+    return f"{who}を嫌悪している"
   if 0.2 < intimacy <= 0.4:
-    return f"あなたは{who}と知り合いである。"
+    return f"{who}と知り合い"
   if 0.4 < intimacy <= 0.6:
-    return f"あなたは{who}と友達である。"
+    return f"{who}と友達"
   if 0.6 < intimacy <= 0.8:
-    return f"あなたは{who}と親友である。"
+    return f"{who}と親友"
   if 0.8 < intimacy <= 1.0:
-    return f"あなたは{who}が好きである。"
+    return f"{who}が好き"
   if 1.0 < intimacy:
-    return f"あなたは{who}を愛している。"
+    return f"{who}を愛している"
 
 
 intimacy_ref_vector = EmotionDelta(-1, -1, -1, 1, -1).normalized
