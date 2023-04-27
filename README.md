@@ -11,18 +11,23 @@ OpenAIのAPIを利用したチャットボットの雛形です。sqlite3を利�
 
 以下のコマンドを実行して、`vector_cosine_similarity.dylib` を生成します。
 
+> **Warning**
+> `gcc` は `clang` のエイリアスではなく、本物の `gcc` を利用してください。
+>
+> Homebrew経由でインストールした場合は `gcc-11` や　`gcc-12` のような名前のコマンドになっています。
+
 ```bash
-curl -L https://www.sqlite.org/src/tarball/sqlite.tar.gz?r=release --output sqlite3.tgz
+curl -L "https://www.sqlite.org/src/tarball/sqlite.tar.gz?r=release" --output sqlite3.tgz
 tar xvf sqlite3.tgz
 cd ./sqlite
 ./configure
 make -j2
 sudo cp ./sqlite3 /usr/local/bin/sqlite3
 cd ..
-gcc-12 -dynamiclib \
-       -o openai_secretary/plugins/vector_cosine_similarity.dylib \
-       ./native/vector_cosine_similarity.c \
-       -lm -lsqlite3 -I./sqlite/src/ -L./sqlite/
+gcc -dynamiclib \
+    -o openai_secretary/plugins/vector_cosine_similarity.dylib \
+    ./native/vector_cosine_similarity.c \
+    -lm -lsqlite3 -I./sqlite -L./sqlite
 ```
 
 #### For Linux
@@ -35,6 +40,7 @@ tar xvf sqlite3.tgz
 cd ./sqlite
 ./configure
 make -j2
+sudo ./libtool --mode=install install -c libsqlite3.la /usr/local/lib/
 sudo cp ./sqlite3 /usr/local/bin/sqlite3
 cd ..
 sudo libtool --mode=install install -c ./sqlite/libsqlite3.la /usr/local/lib
